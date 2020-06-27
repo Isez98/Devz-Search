@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <title>JSON Custom Search API Example</title>
+  </head>
+  <body>
+    <input id="txtBox" />
+    <button onClick="getJSONP(`https://www.googleapis.com/customsearch/v1?key=AIzaSyD8QNzBdjzt3ZNEbGTz4P1rSAnvDPtbrUU&cx=005033773481765961543:gti8czyzyrw&callback=hndlr&num=3&q=?`, function(data){console.log(data)})">Search</button>
+    <div id="content"></div>
+    <script>
+      function getJSONP(url, success) {
+        let txtBox = document.getElementById('txtBox');
+        let txtBoxText = txtBox.value;
+        console.log(String(txtBoxText));
+        var ud = '_' + +new Date,
+            script = document.createElement('script'),
+            head = document.getElementsByTagName('head')[0] 
+                  || document.documentElement;
+
+        window[ud] = function(data) {
+            head.removeChild(script);
+            success && success(data);
+        };
+        document.getElementById("content").innerHTML = '';
+        script.src = url.replace('q=?', `q= ${textToUrl(String(txtBoxText))}`)
+        head.appendChild(script);
+      }
+
+      function textToUrl(txtBoxText) {
+        let url = txtBoxText.replace(/ /g, '-');
+        return url;
+      }
+
+      function hndlr(response) {
+        console.log(response)
+        for (var i = 0; i < response.items.length; i++) {
+          var item = response.items[i];
+          // in production code, item.htmlTitle should have the HTML entities escaped.
+          document.getElementById("content").innerHTML += `<br><a href="${item.link}">` + item.title + "</a><br>";        
+          document.getElementById("content").innerHTML += item.snippet + "<br>";
+        }
+      }
+    </script>
+  </body>
+</html>
