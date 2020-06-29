@@ -59,7 +59,11 @@ func main() {
 
 func handleMessage(ev *slack.MessageEvent) {
 	fmt.Printf("%v\n", ev)
-	searchAnswer(ev)
+	structure := searchAnswer(ev)
+	
+	jsonMessage := dataBinding(structure)
+
+	replyToUser(jsonMessage)
 }
 
 func replyToUser(jsonMessage []byte) {	
@@ -76,7 +80,7 @@ func replyToUser(jsonMessage []byte) {
 	log.Println(body)
 }
 
-func searchAnswer(ev *slack.MessageEvent) {
+func searchAnswer(ev *slack.MessageEvent) SearchResults {
 		url := "https://www.googleapis.com/customsearch/v1?key=AIzaSyD8QNzBdjzt3ZNEbGTz4P1rSAnvDPtbrUU&cx=005033773481765961543:gti8czyzyrw&num=3&q=golang"
 		googleClient := http.Client{
 			Timeout: time.Second * 3, // Maximum of 3 secs
@@ -97,46 +101,36 @@ func searchAnswer(ev *slack.MessageEvent) {
 		if readErr != nil {
 			log.Fatal(readErr)
 		}
-		apiMessage(body)
+		value := apiMessage(body)
+		return value
 }
 
-func apiMessage(jsonRaw []byte) {
+func apiMessage(jsonRaw []byte) SearchResults {
 	structure := SearchResults{}
 	jsonErr := json.Unmarshal(jsonRaw, &structure)
 	if jsonErr != nil {
 		log.Fatal(jsonErr)
 	}
-  dataBinding(structure)
+  return structure
 }
 
-func dataBinding(data SearchResults) {
+func dataBinding(data SearchResults) []byte {
 	payload := new(Payload)
-	Item1 := data.Items[0]
-	Item2 := data.Items[1]
-	Item3 := data.Items[2]
-	textBlock1 := fmt.Sprintf("*<%s|%s>*\n>_%s_", Item1.Link, Item1.Title, strings.Replace(Item1.Snippet, "\n", " ", -1))
-	textBlock2 := fmt.Sprintf("*<%s|%s>*\n>_%s_", Item2.Link, Item2.Title, strings.Replace(Item2.Snippet, "\n", " ", -1))
-	textBlock3 := fmt.Sprintf("*<%s|%s>*\n>_%s_", Item3.Link, Item3.Title, strings.Replace(Item3.Snippet, "\n", " ", -1))
-	payload.Blocks = []Block{
-		Block {
+
+	for i:=0; i<3; i++ {
+		item := data.Items[i]
+		textBlock := fmt.Sprintf("*<%s|%s>*\n>_%s_", item.Link, item.Title, strings.Replace(item.Snippet, "\n", " ", -1))
+		block := Block{
 			Type: "section",   
-			Text: TextInfo{"mrkdwn", textBlock1}, //Si existe error posiblemente sea porque textBlock no sea un string
-			BlockId: "text0",
-		},
-		Block {
-			Type: "section",   
-			Text: TextInfo{"mrkdwn", textBlock2}, //Si existe error posiblemente sea porque textBlock no sea un string
-			BlockId: "text1",
-		},
-		Block {
-			Type: "section",   
-			Text: TextInfo{"mrkdwn", textBlock3}, //Si existe error posiblemente sea porque textBlock no sea un string
-			BlockId: "text2",
-		},
-	}
+			Text: TextInfo{"mrkdwn", textBlock},
+			BlockId: fmt.Sprintf("text%v", i),
+		}
+		payload.Blocks = append(payload.Blocks, block)
+	}   
+
 	jsonMessage, recieveErr := json.Marshal(payload)
 	if recieveErr != nil {
 		log.Fatalln(recieveErr)
 	}
-	replyToUser(jsonMessage)
+	return jsonMessage
 }
