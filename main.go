@@ -64,6 +64,8 @@ func handleMessage(ev *slack.MessageEvent) {
 	jsonMessage := dataBinding(structure)
 
 	replyToUser(jsonMessage)
+	options := slack.MsgOptionText("Hello there",false)
+	slackClient.PostMessage(ev.Channel,options)
 }
 
 func replyToUser(jsonMessage []byte) {	
@@ -126,7 +128,7 @@ func dataBinding(data SearchResults) []byte {
 			BlockId: fmt.Sprintf("text%v", i),
 		}
 		payload.Blocks = append(payload.Blocks, block)
-	}   
+	}
 
 	jsonMessage, recieveErr := json.Marshal(payload)
 	if recieveErr != nil {
