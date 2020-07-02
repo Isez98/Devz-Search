@@ -1,16 +1,17 @@
 package main
 
-import(
-	"os"
-	"fmt"
-	"log"
-	"github.com/slack-go/slack"
-	"net/http"
-	"io/ioutil"
-	"encoding/json"
-	"time"
+import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 	"strings"
+	"time"
+
+	"github.com/slack-go/slack"
 )
 
 var (
@@ -18,13 +19,13 @@ var (
 )
 
 type SearchResults struct {
-	Items []Item `json:items` 
+	Items []Item `json:items`
 }
 
 type Item struct {
-	Link string `json:link`
+	Link    string `json:link`
 	Snippet string `json:snippet`
-	Title string `json:title`
+	Title   string `json:title`
 }
 
 type TextInfo struct {
@@ -33,9 +34,9 @@ type TextInfo struct {
 }
 
 type Block struct {
-	Type string `json:"type"`
-	Text TextInfo `json:"text"`
-	BlockId string `json:"block_id"`
+	Type    string   `json:"type"`
+	Text    TextInfo `json:"text"`
+	BlockId string   `json:"block_id"`
 }
 
 type Payload struct {
@@ -60,13 +61,12 @@ func main() {
 func handleMessage(ev *slack.MessageEvent) {
 	fmt.Printf("%v\n", ev)
 	structure := searchAnswer(ev)
-	
-	jsonMessage := dataBinding(structure)
-
-	replyToUser(jsonMessage)
+	slackMessage := dataBinding(structure)
+	//replyToUser(jsonMessage)
+	slackClient.PostEphemeral(ev.Channel, ev.User, slack.MsgOptionBlocks(slackMessage...))
 }
 
-func replyToUser(jsonMessage []byte) {	
+func replyToUser(jsonMessage []byte) {
 
 	resp, err := http.Post(os.Getenv("WEB_HOOK"), "application/json", bytes.NewBuffer(jsonMessage))
 	if err != nil {
@@ -81,28 +81,28 @@ func replyToUser(jsonMessage []byte) {
 }
 
 func searchAnswer(ev *slack.MessageEvent) SearchResults {
-		url := "https://www.googleapis.com/customsearch/v1?key=AIzaSyD8QNzBdjzt3ZNEbGTz4P1rSAnvDPtbrUU&cx=005033773481765961543:gti8czyzyrw&num=3&q=golang"
-		googleClient := http.Client{
-			Timeout: time.Second * 3, // Maximum of 3 secs
-		}
-		req, err := http.NewRequest(http.MethodGet, url, nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-		req.Header.Set("User-Agent", "Isacc Hernandez")
-		res, getErr := googleClient.Do(req)
-		if getErr != nil {
-			log.Fatal(getErr)
-		}
-		if res.Body != nil {
-				defer res.Body.Close()
-			}
-		body, readErr := ioutil.ReadAll(res.Body)
-		if readErr != nil {
-			log.Fatal(readErr)
-		}
-		value := apiMessage(body)
-		return value
+	url := "https://www.googleapis.com/customsearch/v1?key=AIzaSyD8QNzBdjzt3ZNEbGTz4P1rSAnvDPtbrUU&cx=005033773481765961543:gti8czyzyrw&num=3&q=golang"
+	googleClient := http.Client{
+		Timeout: time.Second * 3, // Maximum of 3 secs
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("User-Agent", "Isacc Hernandez")
+	res, getErr := googleClient.Do(req)
+	if getErr != nil {
+		log.Fatal(getErr)
+	}
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+	body, readErr := ioutil.ReadAll(res.Body)
+	if readErr != nil {
+		log.Fatal(readErr)
+	}
+	value := apiMessage(body)
+	return value
 }
 
 func apiMessage(jsonRaw []byte) SearchResults {
@@ -111,26 +111,21 @@ func apiMessage(jsonRaw []byte) SearchResults {
 	if jsonErr != nil {
 		log.Fatal(jsonErr)
 	}
-  return structure
+	return structure
 }
 
-func dataBinding(data SearchResults) []byte {
-	payload := new(Payload)
-
-	for i:=0; i<3; i++ {
+func dataBinding(data SearchResults) []slack.Block {
+//	payload := new(Payload)
+	var slackBlock []slack.Block
+	for i := 0; i < 3; i++ {
 		item := data.Items[i]
+		btn := slack.NewButtonBlockElement("", "", slack.NewTextBlockObject("plain_text", "Send", false, false))
 		textBlock := fmt.Sprintf("*<%s|%s>*\n>_%s_", item.Link, item.Title, strings.Replace(item.Snippet, "\n", " ", -1))
-		block := Block{
-			Type: "section",   
-			Text: TextInfo{"mrkdwn", textBlock},
-			BlockId: fmt.Sprintf("text%v", i),
-		}
-		payload.Blocks = append(payload.Blocks, block)
-	}   
-
-	jsonMessage, recieveErr := json.Marshal(payload)
-	if recieveErr != nil {
-		log.Fatalln(recieveErr)
-	}
-	return jsonMessage
+		msgBlock := slack.NewTextBlockObject("mrkdwn", textBlock, false, false)
+		slackBlock = append(slackBlock, slack.NewSectionBlock(msgBlock, nil, slack.NewAccessory(btn)))
+	}	
+	cancelBtn := slack.NewButtonBlockElement("", "", slack.NewTextBlockObject("plain_text", "Cancel", false, false))
+	actionBlock := slack.NewActionBlock("", cancelBtn)
+	slackBlock = append(slackBlock, actionBlock)
+	return slackBlock
 }
